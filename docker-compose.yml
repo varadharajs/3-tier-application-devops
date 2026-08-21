@@ -1,0 +1,89 @@
+services:
+
+  # =========================
+  # DATA TIER
+  # =========================
+  postgres:
+    image: postgres:16-alpine
+    container_name: jerney-postgres
+
+    environment:
+      POSTGRES_USER: jerney_user
+      POSTGRES_PASSWORD: jerney_pass_2026
+      POSTGRES_DB: jerney_db
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jerney_user -d jerney_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    networks:
+      - jerney-network
+
+
+  # =========================
+  # APPLICATION TIER
+  # =========================
+  jerney-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: jerney-backend
+
+    environment:
+      DB_USER: jerney_user
+      DB_PASSWORD: jerney_pass_2026
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: jerney_db
+      PORT: 5000
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    expose:
+      - "5000"
+
+    networks:
+      - jerney-network
+
+
+  # =========================
+  # PRESENTATION TIER
+  # =========================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+
+    container_name: jerney-frontend
+
+    ports:
+      - "3000:80"
+
+    depends_on:
+      - jerney-backend
+
+    networks:
+      - jerney-network
+
+
+# =========================
+# STORAGE
+# =========================
+volumes:
+  postgres_data:
+
+
+# =========================
+# NETWORK
+# =========================
+networks:
+  jerney-network:
+    driver: bridge
