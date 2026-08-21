@@ -2,179 +2,117 @@ pipeline {
 
     agent any
 
+    environment {
+        GITHUB_REPO = 'https://github.com/varadharajs/3-tier-application-devops.git'
+
+        PROD_USER = 'ec2-user'
+        PROD_HOST = '172.31.14.222'
+        PROD_DIR  = '/home/ec2-user/3-tier-application-devops'
+
+        SSH_KEY = '/var/lib/jenkins/.ssh/id_ed25519'
+    }
+
     stages {
 
         stage('Checkout') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/varadharajs/3-tier-application-devops.git'
+                    url: "${GITHUB_REPO}"
             }
         }
 
         stage('Verify Code') {
             steps {
                 sh '''
-                    echo "======================================"
-                    echo "        PROJECT FILES"
-                    echo "======================================"
-
+                    echo "===== Project Files ====="
                     ls -la
 
-                    echo ""
                     echo "===== Backend ====="
                     ls -la backend
 
-                    echo ""
                     echo "===== Frontend ====="
                     ls -la frontend
 
-                    echo ""
-                    echo "===== Deploy ====="
-                    ls -la deploy
+                    echo "===== Docker Compose ====="
+                    ls -la docker-compose.yml
                 '''
             }
         }
 
-        stage('Docker Build') {
+        stage('Test Jenkins') {
+            steps {
+                echo 'Jenkins is working!'
+            }
+        }
+
+        stage('Test Production SSH') {
             steps {
                 sh '''
-                    echo "======================================"
-                    echo "   DOCKER BUILD ON DEPLOYMENT SERVER"
-                    echo "======================================"
-
                     ssh -o StrictHostKeyChecking=no \
-                        -i /var/lib/jenkins/.ssh/id_ed25519 \
-                        ec2-user@172.31.14.222 '
-
-                        echo "===== Connected to Deployment Server ====="
-                        hostname
-
-                        echo ""
-                        echo "===== Docker Version ====="
-                        docker --version
-
-                        echo ""
-                        echo "===== Docker Compose Version ====="
-                        docker compose version
-
-                        echo ""
-                        echo "===== Application Directory ====="
-                        cd /home/ec2-user/Jerney
-
-                        pwd
-
-                        echo ""
-                        echo "===== Building Docker Images ====="
-                        docker compose build
-
-                        echo ""
-                        echo "===== Docker Images ====="
-                        docker images
-
-                        echo ""
-                        echo "===== Docker Build Completed ====="
-                    '
+                    -i ${SSH_KEY} \
+                    ${PROD_USER}@${PROD_HOST} \
+                    "hostname && docker --version && docker compose version"
                 '''
             }
         }
 
-        stage('Deploy Application') {
+        stage('Deploy to Production') {
             steps {
                 sh '''
-                    echo "======================================"
-                    echo "       DEPLOYING APPLICATION"
-                    echo "======================================"
-
                     ssh -o StrictHostKeyChecking=no \
-                        -i /var/lib/jenkins/.ssh/id_ed25519 \
-                        ec2-user@172.31.14.222 '
+                    -i ${SSH_KEY} \
+                    ${PROD_USER}@${PROD_HOST} << 'EOF'
 
-                        cd /home/ec2-user/Jerney
+                    set -e
 
-                        echo "===== Starting Application ====="
-                        docker compose up -d
+                    cd ${PROD_DIR}
 
-                        echo ""
-                        echo "===== Waiting for Containers ====="
-                        sleep 10
+                    echo "===== Pull latest code ====="
+                    git pull origin main
 
-                        echo ""
-                        echo "===== Application Status ====="
-                        docker compose ps
-                    '
+                    echo "===== Docker Compose Build ====="
+                    docker compose build
+
+                    echo "===== Stop old containers ====="
+                    docker compose down
+
+                    echo "===== Start new containers ====="
+                    docker compose up -d
+
+                    echo "===== Container Status ====="
+                    docker compose ps
+
+                    echo "===== Production Deployment Completed ====="
+
+                    EOF
                 '''
             }
         }
 
-        stage('Health Check') {
+        stage('Verify Production') {
             steps {
                 sh '''
-                    echo "======================================"
-                    echo "          HEALTH CHECK"
-                    echo "======================================"
-
                     ssh -o StrictHostKeyChecking=no \
-                        -i /var/lib/jenkins/.ssh/id_ed25519 \
-                        ec2-user@172.31.14.222 '
-
-                        cd /home/ec2-user/Jerney
-
-                        echo "===== Container Status ====="
-                        docker compose ps
-
-                        echo ""
-                        echo "===== Frontend Health Check ====="
-
-                        curl -f http://127.0.0.1:3000 > /dev/null
-
-                        if [ $? -eq 0 ]; then
-                            echo "Frontend is UP"
-                        else
-                            echo "Frontend health check FAILED"
-                            exit 1
-                        fi
-
-                        echo ""
-                        echo "===== PostgreSQL Status ====="
-                        docker compose ps postgres
-
-                        echo ""
-                        echo "===== Application Health Check PASSED ====="
-                    '
+                    -i ${SSH_KEY} \
+                    ${PROD_USER}@${PROD_HOST} \
+                    "curl -f http://127.0.0.1:3000 > /dev/null && echo 'Production application is UP'"
                 '''
             }
         }
     }
 
     post {
-
         success {
-            echo '''
-======================================
-       JENKINS PIPELINE SUCCESS
-======================================
-Checkout       : SUCCESS
-Code Verify    : SUCCESS
-Docker Build   : SUCCESS
-Deployment     : SUCCESS
-Health Check   : SUCCESS
-======================================
-'''
+            echo '======================================'
+            echo ' CI/CD DEPLOYMENT SUCCESSFUL'
+            echo '======================================'
         }
 
         failure {
-            echo '''
-======================================
-       JENKINS PIPELINE FAILED
-======================================
-Check the Console Output for
-the failed stage.
-======================================
-'''
-        }
-
-        always {
-            echo 'Jenkins pipeline execution completed.'
+            echo '======================================'
+            echo ' CI/CD DEPLOYMENT FAILED'
+            echo ' Check Jenkins Console Output'
+            echo '======================================'
         }
     }
 }
