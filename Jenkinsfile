@@ -45,7 +45,7 @@ pipeline {
                     ssh -o StrictHostKeyChecking=no \
                         -i /var/lib/jenkins/.ssh/id_ed25519 \
                         ec2-user@172.31.14.222 '
-                        
+
                         echo "===== Connected to Deployment Server ====="
                         hostname
 
@@ -58,11 +58,9 @@ pipeline {
                         docker compose version
 
                         echo ""
-                        echo "===== Going to Application Directory ====="
+                        echo "===== Application Directory ====="
                         cd /home/ec2-user/Jerney
 
-                        echo ""
-                        echo "===== Current Directory ====="
                         pwd
 
                         echo ""
@@ -79,20 +77,100 @@ pipeline {
                 '''
             }
         }
+
+        stage('Deploy Application') {
+            steps {
+                sh '''
+                    echo "======================================"
+                    echo "       DEPLOYING APPLICATION"
+                    echo "======================================"
+
+                    ssh -o StrictHostKeyChecking=no \
+                        -i /var/lib/jenkins/.ssh/id_ed25519 \
+                        ec2-user@172.31.14.222 '
+
+                        cd /home/ec2-user/Jerney
+
+                        echo "===== Starting Application ====="
+                        docker compose up -d
+
+                        echo ""
+                        echo "===== Waiting for Containers ====="
+                        sleep 10
+
+                        echo ""
+                        echo "===== Application Status ====="
+                        docker compose ps
+                    '
+                '''
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                sh '''
+                    echo "======================================"
+                    echo "          HEALTH CHECK"
+                    echo "======================================"
+
+                    ssh -o StrictHostKeyChecking=no \
+                        -i /var/lib/jenkins/.ssh/id_ed25519 \
+                        ec2-user@172.31.14.222 '
+
+                        cd /home/ec2-user/Jerney
+
+                        echo "===== Container Status ====="
+                        docker compose ps
+
+                        echo ""
+                        echo "===== Frontend Health Check ====="
+
+                        curl -f http://127.0.0.1:3000 > /dev/null
+
+                        if [ $? -eq 0 ]; then
+                            echo "Frontend is UP"
+                        else
+                            echo "Frontend health check FAILED"
+                            exit 1
+                        fi
+
+                        echo ""
+                        echo "===== PostgreSQL Status ====="
+                        docker compose ps postgres
+
+                        echo ""
+                        echo "===== Application Health Check PASSED ====="
+                    '
+                '''
+            }
+        }
     }
 
     post {
 
         success {
-            echo '======================================'
-            echo '       JENKINS BUILD SUCCESSFUL'
-            echo '======================================'
+            echo '''
+======================================
+       JENKINS PIPELINE SUCCESS
+======================================
+Checkout       : SUCCESS
+Code Verify    : SUCCESS
+Docker Build   : SUCCESS
+Deployment     : SUCCESS
+Health Check   : SUCCESS
+======================================
+'''
         }
 
         failure {
-            echo '======================================'
-            echo '       JENKINS BUILD FAILED'
-            echo '======================================'
+            echo '''
+======================================
+       JENKINS PIPELINE FAILED
+======================================
+Check the Console Output for
+the failed stage.
+======================================
+'''
         }
 
         always {
