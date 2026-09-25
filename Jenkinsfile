@@ -6,7 +6,7 @@ pipeline {
         REPO_URL = 'https://github.com/varadharajs/3-tier-application-devops.git'
 
         DEPLOY_USER = 'ec2-user'
-        DEPLOY_HOST = '172.31.14.222'
+        DEPLOY_HOST = '172.31.17.201'
         DEPLOY_DIR  = '/home/ec2-user/Jerney'
 
         SSH_KEY = '/var/lib/jenkins/.ssh/id_ed25519'
