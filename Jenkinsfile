@@ -7,7 +7,7 @@ pipeline {
 
         DEPLOY_USER = 'ec2-user'
         DEPLOY_HOST = '172.31.17.201'
-        DEPLOY_DIR  = '/home/ec2-user/Jerney'
+        DEPLOY_DIR  = '/home/ec2-user/3-tier-application-devops'
 
         SSH_KEY = '/var/lib/jenkins/.ssh/id_ed25519'
     }
@@ -102,7 +102,7 @@ pipeline {
                     echo "1. Go to application directory"
                     echo "======================================"
 
-                    cd /home/ec2-user/Jerney
+                    cd /home/ec2-user/3-tier-application-devops
 
                     pwd
 
